@@ -12,3 +12,4 @@ anthropic
 fastapi
 uvicorn
 jinja2
+apscheduler

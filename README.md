@@ -1,6 +1,19 @@
 # Small Funds
 
-Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드까지 이어지는 모듈형 파이프라인 (01~08). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를 참고.
+Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → DCC-GARCH 기반 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드까지 이어지는 모듈형 파이프라인 (01~08). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를, 전체 요약은 [`SKILLS.md`](SKILLS.md)를 참고.
+
+```mermaid
+flowchart TD
+    A["01 데이터 적재<br/>KRX·US 가격/지수"] --> B["02 유니버스 필터<br/>모멘텀·샤프·시총 등 룰베이스"]
+    B --> C["03 공분산 Σ 추정<br/>GARCH-DCC"]
+    B --> D["04 뷰 Q·Ω 추정<br/>팩터+시퀀스+메타 스태킹"]
+    C --> E["05 Black-Litterman<br/>Σ·Q·Ω 결합"]
+    D --> E
+    E --> F["06 상위 종목 선별<br/>발행사·섹터 집중도 캡"]
+    F --> G["07 백테스트<br/>OOF 기반 시점-정직 검증"]
+    F --> H["08 웹 대시보드<br/>FastAPI + 인앱 스케줄러"]
+    G --> H
+```
 
 ## 사전 준비물
 - Python 3.11+
@@ -10,8 +23,8 @@ Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유
 
 ## 설치
 ```bash
-git clone <this repo>
-cd "Small Funds"
+git clone https://github.com/GongsonChan/Portfolio-project.git
+cd Portfolio-project
 python -m venv .venv
 .venv\Scripts\activate       # Windows. macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
@@ -75,12 +88,12 @@ cd ../07_backtest && python scripts/run_backtest.py
 위와 동일하되 `--start` 생략 (기본값: 전체 히스토리). 순서는 반드시 지킬 것 — 뒷 단계가 앞 단계 결과를 그대로 가져다 씀: `01_data_load/scripts/backfill_*.py` → `03_sigma_estimation/fit_univariate_garch.py`(전체 재추정 ~29분) → `02_filter/run_filter.py` → `03_sigma_estimation/fit_dcc.py` → `04_views_estimation`(`backfill_features.py`로 피처 먼저 채우고 OOF, 시퀀스 OOF가 제일 오래 걸림) → `05`/`06`/`07`.
 
 ## 매일/매주 갱신
-최초 세팅 끝나면 그 다음부터는:
+최초 세팅 끝나면 그 다음부터는 수동으로:
 ```bash
 python scripts/daily_update.py    # 평일: 가격 + Σ/Q 가벼운 갱신 + BL + post-filter
 python scripts/weekly_update.py   # 주말: 유니버스 재선정 + 모수 전체 재추정 + 모델 재학습
 ```
-자세한 스케줄/이유는 `DAILY_UPDATE.md` 참고.
+자세한 스케줄/이유는 `DAILY_UPDATE.md` 참고. (아래 웹 대시보드를 띄워두면 이 둘을 수동으로 돌릴 필요 없음 — 자동 스케줄링 참고)
 
 ## 웹 대시보드
 ```bash
@@ -91,6 +104,9 @@ python app.py
 
 <img src="picture01.png" alt="최종 추천 포트폴리오 화면" width="700">
 <img src="picture02.png" alt="백테스트 성과 화면" width="700">
+
+### 자동 스케줄링 (앱 내장)
+OS 스케줄러(cron/작업 스케줄러) 설정 없이, **앱 프로세스 자체가** 스케줄을 가지고 있음 (`08_web/src/scheduler.py`, APScheduler) — `python app.py`를 켜두는 동안은 평일 08:00에 `daily_update.py`, 토요일 09:00에 `weekly_update.py`가 자동으로 실행됨. 긴 작업이라 별도 워커 스레드에서 돌아서 대시보드 자체는 그동안도 계속 응답함. 서버 프로세스가 꺼지면(재부팅, 터미널 종료 등) 스케줄도 같이 멈추므로, 계속 자동으로 돌아가게 하려면 이 프로세스를 계속 띄워두거나(서버에 배포 등) 별도 프로세스 매니저로 관리해야 함. 시간은 `scheduler.py` 상단의 `DAILY_HOUR`/`WEEKLY_HOUR` 등 상수로 조절 가능.
 
 ## 구조
 | 모듈 | 역할 |
