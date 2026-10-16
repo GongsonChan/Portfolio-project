@@ -6,7 +6,7 @@ Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유
 flowchart TD
     A["01 데이터 적재<br/>KRX·US 가격/지수"] --> B["02 유니버스 필터<br/>모멘텀·샤프·시총 등 룰베이스"]
     B --> C["03 공분산 Σ 추정<br/>GARCH-DCC"]
-    B --> D["04 뷰 Q·Ω 추정<br/>팩터+시퀀스+메타 스태킹"]
+    B --> D["04 뷰 Q·Ω 추정<br/>팩터(LightGBM·RF·Ridge·Lasso·Huber)<br/>+시퀀스(GRU·CNN·PatchTST)<br/>+메타(Ridge/LightGBM) 스태킹"]
     C --> E["05 Black-Litterman<br/>Σ·Q·Ω 결합"]
     D --> E
     E --> F["06 상위 종목 선별<br/>발행사·섹터 집중도 캡"]
