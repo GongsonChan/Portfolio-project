@@ -1,0 +1,14 @@
+psycopg2-binary
+SQLAlchemy
+python-dotenv
+pandas
+yfinance
+requests
+tqdm
+html5lib
+arch
+PyPortfolioOpt
+anthropic
+fastapi
+uvicorn
+jinja2

@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+exports/
+*.log
+.claude/
+
+# Trained model binaries + OOF/training-set parquet files -- regenerable via setup.py /
+# 04_views_estimation's scripts (run_oof.py, train_final_models.py, ...), and some of these
+# (e.g. factor_random_forest.joblib) are >100MB, over GitHub's per-file limit.
+04_views_estimation/models/
+04_views_estimation/output/

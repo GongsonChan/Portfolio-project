@@ -1,0 +1,30 @@
+services:
+  db:
+    image: postgres:16
+    container_name: smallfunds_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-smallfunds}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smallfunds}
+      POSTGRES_DB: ${POSTGRES_DB:-smallfunds}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      # Each line maps one module's existing schema file straight through (no copies to keep in
+      # sync) -- the numeric prefix on the right only controls run order inside the container
+      # (docker-entrypoint-initdb.d runs files alphabetically). Only ordering constraint: every
+      # other table FKs to securities, so 00_init.sql (01_data_load) must run first.
+      - ./db/init.sql:/docker-entrypoint-initdb.d/00_securities_and_prices.sql
+      - ../02_filter/db/universe_selection.sql:/docker-entrypoint-initdb.d/01_universe_selection.sql
+      - ../03_sigma_estimation/db/garch_tables.sql:/docker-entrypoint-initdb.d/02_garch_tables.sql
+      - ../04_views_estimation/db/ml_features.sql:/docker-entrypoint-initdb.d/03_ml_features.sql
+      - ../04_views_estimation/db/model_registry.sql:/docker-entrypoint-initdb.d/04_model_registry.sql
+      - ../04_views_estimation/db/omega.sql:/docker-entrypoint-initdb.d/05_omega.sql
+      - ../04_views_estimation/db/views.sql:/docker-entrypoint-initdb.d/06_views.sql
+      - ../05_black_litterman/db/portfolio_weights.sql:/docker-entrypoint-initdb.d/07_portfolio_weights.sql
+      - ../06_post_filter/db/final_portfolio.sql:/docker-entrypoint-initdb.d/08_final_portfolio.sql
+      - ../07_backtest/db/backtest_period_returns.sql:/docker-entrypoint-initdb.d/09_backtest_period_returns.sql
+
+volumes:
+  db_data:

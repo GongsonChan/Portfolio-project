@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Small Funds</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2e38; --text: #e6e8ec; --muted: #9aa0ac;
+    --pos: #3ddc84; --neg: #ff6b6b; --accent: #5b8cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px 16px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .card .label { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .card .value { font-size: 20px; font-weight: 600; }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+  th, td { padding: 10px 14px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .weight-bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+  canvas { max-height: 320px; }
+  section { margin-bottom: 32px; }
+  h2 { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Small Funds</h1>
+  <div class="sub">label: {{ label }} · 포트폴리오 기준일: {{ portfolio_date or "데이터 없음" }}</div>
+
+  <section>
+    <h2>최종 추천 포트폴리오</h2>
+    {% if holdings %}
+    <table>
+      <tr><th>티커</th><th>종목명</th><th>섹터</th><th>비중</th></tr>
+      {% for h in holdings %}
+      <tr>
+        <td>{{ h.ticker }}</td>
+        <td>{{ h.name }}</td>
+        <td>{{ h.sector }}</td>
+        <td><span class="weight-bar" style="width:{{ (h.weight * 300)|round(0) }}px"></span>{{ "%.2f"|format(h.weight * 100) }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="sub">아직 포트폴리오가 없습니다 (05/06 파이프라인을 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>백테스트 (OOF 기반, 단순화된 Σ/Ω)</h2>
+    {% if stats %}
+    <div class="grid">
+      <div class="card"><div class="label">기간 수</div><div class="value">{{ stats.n_periods }}</div></div>
+      <div class="card"><div class="label">누적 수익률</div><div class="value {{ 'pos' if stats.cumulative_return >= 0 else 'neg' }}">{{ "%.1f"|format(stats.cumulative_return * 100) }}%</div></div>
+      <div class="card"><div class="label">연환산 수익률</div><div class="value {{ 'pos' if stats.annualized_return >= 0 else 'neg' }}">{{ "%.1f"|format(stats.annualized_return * 100) }}%</div></div>
+      <div class="card"><div class="label">연환산 변동성</div><div class="value">{{ "%.1f"|format(stats.annualized_vol * 100) }}%</div></div>
+      <div class="card"><div class="label">샤프</div><div class="value {{ 'pos' if stats.sharpe >= 0 else 'neg' }}">{{ "%.2f"|format(stats.sharpe) }}</div></div>
+      <div class="card"><div class="label">MDD</div><div class="value neg">{{ "%.1f"|format(stats.max_drawdown * 100) }}%</div></div>
+    </div>
+    <canvas id="equityChart"></canvas>
+    <script>
+      const equityData = {{ stats.equity_curve | tojson }};
+      new Chart(document.getElementById('equityChart'), {
+        type: 'line',
+        data: {
+          labels: equityData.map(d => d[0]),
+          datasets: [{
+            label: '누적 성과 (1=시작)',
+            data: equityData.map(d => d[1]),
+            borderColor: '#5b8cff',
+            backgroundColor: 'rgba(91,140,255,0.1)',
+            fill: true,
+            pointRadius: 0,
+            borderWidth: 1.5,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#9aa0ac' } } },
+          scales: {
+            x: { ticks: { color: '#9aa0ac', maxTicksLimit: 10 }, grid: { color: '#2a2e38' } },
+            y: { ticks: { color: '#9aa0ac' }, grid: { color: '#2a2e38' } },
+          },
+        },
+      });
+    </script>
+    {% else %}
+    <p class="sub">아직 백테스트 결과가 없습니다 (07_backtest/scripts/run_backtest.py를 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+</div>
+</body>
+</html>
