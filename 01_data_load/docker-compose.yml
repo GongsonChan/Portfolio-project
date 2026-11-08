@@ -25,6 +25,7 @@ services:
       - ../05_black_litterman/db/portfolio_weights.sql:/docker-entrypoint-initdb.d/07_portfolio_weights.sql
       - ../06_post_filter/db/final_portfolio.sql:/docker-entrypoint-initdb.d/08_final_portfolio.sql
       - ../07_backtest/db/backtest_period_returns.sql:/docker-entrypoint-initdb.d/09_backtest_period_returns.sql
+      - ../09_risk_management/db/risk_tables.sql:/docker-entrypoint-initdb.d/10_risk_tables.sql
 
 volumes:
   db_data:

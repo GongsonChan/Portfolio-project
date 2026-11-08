@@ -1,4 +1,4 @@
-# 수동 갱신 순서 (01 ~ 06)
+# 수동 갱신 순서 (01 ~ 06, 09)
 
 작업 스케줄러 자동화는 컴퓨터를 상시 켜두지 않는 한 의미가 없어서, 당분간은 아래 순서대로 수동 실행한다. 반드시 이 순서를 지켜야 한다 (뒷 단계가 앞 단계 결과를 그대로 가져다 씀).
 
@@ -38,12 +38,16 @@ cd ..\05_black_litterman
 
 cd ..\06_post_filter
 ..\.venv\Scripts\python.exe scripts\run_post_filter.py            # 상위 N개 선별 + 발행사/섹터 캡 (final_portfolio)
+
+cd ..\09_risk_management
+..\.venv\Scripts\python.exe scripts\compute_daily_risk_report.py  # VaR/ES + 컴포넌트 VaR + 한도 체크, 일일 리스크 보고서
 ```
 - `daily_update_us.py`는 미국장 마감 후(한국 기준 아침)에 돌려야 그 전날 미국 데이터가 들어옴.
 - 01번 둘 다 "DB에 마지막 날짜 다음날 ~ 오늘"까지 자동으로 갭을 메우는 방식이라 며칠 건너뛰어도 따라잡음.
 - **평일엔 `02_filter`를 안 돌림** — 유니버스는 지난 주말 선정분을 그대로 씀 (`update_dcc.py`가 `universe_selection`의 최신 `as_of_date`를 그냥 가져다 씀).
 - `update_univariate_garch.py`/`update_dcc.py`는 저장된 모수가 없으면(최초 1회, 신규 상장 등) 자동으로 전체 재추정 폴백.
 - 05/06은 매일 돌림 — Σ(03)/Q(04)가 매일 갱신되고, 프로젝트 목표 자체가 "매일 밤 자동 갱신 리포트"라서. Ω(04)/유니버스(02)는 주 1회만 바뀌지만 그래도 매일 재조합할 가치가 있음.
+- 09도 매일 돌림 — 06의 `final_portfolio`가 매일 바뀌니 VaR/ES·한도 체크도 그날 기준으로 다시 재야 함.
 
 ## 주말 (주 1회, 아무 요일이나 상관없음 — 순서만 지키면 됨) — 전체 재추정
 ```powershell
@@ -66,9 +70,13 @@ cd ..\04_views_estimation
 ..\.venv\Scripts\python.exe scripts\update_all_oof.py           # 새로 타겟 계산 가능해진 날짜만 팩터/시퀀스/메타 OOF에 추가 (전체 재실행 아님)
 ..\.venv\Scripts\python.exe scripts\train_final_models.py       # 실전 배포 모델 전체 재학습 (~100분+, 시퀀스 데이터 재계산이 대부분)
 ..\.venv\Scripts\python.exe scripts\compute_omega.py             # 방금 갱신된 챔피언 메타모델의 OOF로 Ω 재계산
+
+cd ..\09_risk_management
+..\.venv\Scripts\python.exe scripts\run_var_backtest.py          # VaR 모델 자체가 맞는지 역사적으로 재검증 (Kupiec + 바젤 트래픽라이트)
 ```
 - `fit_` 스크립트는 모수 재추정 + 그날 cond_vol/Σ 저장까지 한 번에 다 함 — 같은 날 `update_` 버전을 또 돌릴 필요 없음 (중복, 낭비).
-- 순서 반드시 지킬 것: GARCH 전체 재추정 → **필터(유니버스 재선정)** → DCC 전체 재추정 (DCC가 그 주의 새 유니버스 + 최신 표준화잔차를 가져다 씀) → OOF 캐치업 → 모델 재학습 → Ω.
+- 순서 반드시 지킬 것: GARCH 전체 재추정 → **필터(유니버스 재선정)** → DCC 전체 재추정 (DCC가 그 주의 새 유니버스 + 최신 표준화잔차를 가져다 씀) → OOF 캐치업 → 모델 재학습 → Ω → VaR 백테스트.
+- 09 백테스트는 OOF가 매주 갱신되니 같은 주기로 재검증 — 매일 돌릴 필요는 없음 (07_backtest의 `run_one_fold()`를 재사용해서 꽤 오래 걸림).
 
 ---
 
@@ -76,3 +84,4 @@ cd ..\04_views_estimation
 - GARCH 1단계(`fit_`/`update_univariate_garch.py`)는 유니버스/필터와 무관하게 전체 종목 대상이라, 필터 조건이 바뀌어도 다시 돌릴 필요 없음.
 - DCC 쪽(`fit_`/`update_dcc.py`) 유니버스 중 GARCH 데이터 없는 티커는 콘솔에 명시적으로 출력되고 자동 제외됨.
 - `--label` 인자로 `run_filter.py`/`fit_dcc.py`/`update_dcc.py` 전부 기본값(`default`) 대신 커스텀 유니버스 지정 가능 (서로 DB에서 안 겹침). 커스텀 유니버스는 이 주간/매일 스케줄과 무관하게 필요할 때 그때그때 수동 실행.
+- `09_risk_management/scripts/backfill_var_history.py`는 평일/주말 스케줄에 안 들어있는 **1회성 유틸리티**임 — `var_backtest_daily`(`run_var_backtest.py`가 만드는 점시점-정직 historical replay)의 최근 60일을 `var_estimates`에 복사해서, 바젤 규제자본 승수의 60일 평균이 라이브 데이터 부족으로 n=1처럼 퇴화하는 걸 막아줌(09_risk_management/DESIGN.md의 "바젤 규제자본 승수" 참고). `ON CONFLICT DO NOTHING`이라 재실행해도 안전하지만, 매일 돌리는 `compute_daily_risk_report.py`가 계속 쌓아가면 자연히 필요 없어짐 — label을 새로 만들거나 DB를 초기화했을 때만 다시 돌리면 됨.

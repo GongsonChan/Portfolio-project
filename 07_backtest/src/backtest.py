@@ -123,7 +123,17 @@ def run_one_fold(oof: pd.DataFrame, as_of_date) -> dict | None:
     final_weights = _cap_and_renormalize(top / top.sum(), MAX_WEIGHT, groups)
 
     portfolio_return = sum(final_weights[t] * target_map[t] for t in final_weights.index)
-    return {"as_of_date": as_of_date, "portfolio_return": portfolio_return, "n_holdings": len(final_weights)}
+    return {
+        "as_of_date": as_of_date,
+        "portfolio_return": portfolio_return,
+        "n_holdings": len(final_weights),
+        # Exposed so 09_risk_management can reuse this exact point-in-time reconstruction for
+        # VaR backtesting instead of re-implementing the BL+cap logic a third time -- the
+        # weights/trailing returns below are already what 09 needs (returns is unscaled daily,
+        # unlike `sigma` above which carries 07's own *HORIZON_DAYS scaling).
+        "final_weights": final_weights,
+        "returns": returns[list(final_weights.index)],
+    }
 
 
 REBALANCE_EVERY_N_FOLDS = 3  # OOF folds are weekly (~7 days apart); the target horizon is 21

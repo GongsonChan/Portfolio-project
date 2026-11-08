@@ -1,6 +1,6 @@
 # Small Funds
 
-Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → DCC-GARCH 기반 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드까지 이어지는 모듈형 파이프라인 (01~08). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를, 전체 요약은 [`SKILLS.md`](SKILLS.md)를 참고.
+Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → DCC-GARCH 기반 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드 → VaR/ES 기반 리스크 관리까지 이어지는 모듈형 파이프라인 (01~09). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를, 전체 요약은 [`SKILLS.md`](SKILLS.md)를 참고.
 
 ```mermaid
 flowchart TD
@@ -12,7 +12,9 @@ flowchart TD
     E --> F["06 상위 종목 선별<br/>발행사·섹터 집중도 캡"]
     F --> G["07 백테스트<br/>OOF 기반 시점-정직 검증"]
     F --> H["08 웹 대시보드<br/>FastAPI + 인앱 스케줄러"]
+    F --> I["09 리스크 관리<br/>VaR/ES·한도 체크·일일 리포트"]
     G --> H
+    I --> H
 ```
 
 ## 사전 준비물
@@ -44,7 +46,7 @@ cp 01_data_load/.env.example 01_data_load/.env
 # .env 열어서 KRX_API, ANTHROPIC_API_KEY 채우기 (POSTGRES_*는 아무 값이나 괜찮음)
 
 cd 01_data_load
-docker compose up -d          # Postgres 컨테이너 기동 + 전체 스키마(01~07) 자동 생성
+docker compose up -d          # Postgres 컨테이너 기동 + 전체 스키마(01~09) 자동 생성
 cd ..
 ```
 `docker compose up`이 전체 파이프라인의 모든 테이블을 한 번에 만듦 — `docker-compose.yml`이 각 모듈의 `db/*.sql`을 순서대로(FK 의존성상 `securities`가 제일 먼저) 마운트해서 Postgres 최초 기동 시 전부 실행함. 각 모듈 폴더의 `db/*.sql`이 원본이고, 따로 복사해둔 파일은 없음(수정하면 바로 반영됨).
@@ -90,8 +92,8 @@ cd ../07_backtest && python scripts/run_backtest.py
 ## 매일/매주 갱신
 최초 세팅 끝나면 그 다음부터는 수동으로:
 ```bash
-python scripts/daily_update.py    # 평일: 가격 + Σ/Q 가벼운 갱신 + BL + post-filter
-python scripts/weekly_update.py   # 주말: 유니버스 재선정 + 모수 전체 재추정 + 모델 재학습
+python scripts/daily_update.py    # 평일: 가격 + Σ/Q 가벼운 갱신 + BL + post-filter + 일일 리스크 보고서
+python scripts/weekly_update.py   # 주말: 유니버스 재선정 + 모수 전체 재추정 + 모델 재학습 + VaR 백테스트 재검증
 ```
 자세한 스케줄/이유는 `DAILY_UPDATE.md` 참고. (아래 웹 대시보드를 띄워두면 이 둘을 수동으로 돌릴 필요 없음 — 자동 스케줄링 참고)
 
@@ -100,10 +102,13 @@ python scripts/weekly_update.py   # 주말: 유니버스 재선정 + 모수 전�
 cd 08_web
 python app.py
 ```
-`http://127.0.0.1:8000` — 오늘의 추천 포트폴리오 + 백테스트 성과(샤프/MDD/누적수익률).
+`http://127.0.0.1:8000` — 오늘의 추천 포트폴리오 + 백테스트 성과(샤프/MDD/누적수익률) + 09_risk_management의 VaR/ES·한도 체크·바젤 규제자본 승수.
 
 <img src="picture01.png" alt="최종 추천 포트폴리오 화면" width="700">
 <img src="picture02.png" alt="백테스트 성과 화면" width="700">
+<img src="picture03.png" alt="VaR/ES 및 리스크 한도 체크 화면" width="700">
+<img src="picture04.png" alt="종목별 컴포넌트 VaR 기여도(오일러 분해) 화면" width="700">
+<img src="picture05.png" alt="VaR 모델 백테스트(Kupiec/바젤 트래픽라이트) 및 바젤 규제자본 승수 화면" width="700">
 
 ### 자동 스케줄링 (앱 내장)
 OS 스케줄러(cron/작업 스케줄러) 설정 없이, **앱 프로세스 자체가** 스케줄을 가지고 있음 (`08_web/src/scheduler.py`, APScheduler) — `python app.py`를 켜두는 동안은 평일 08:00에 `daily_update.py`, 토요일 09:00에 `weekly_update.py`가 자동으로 실행됨. 긴 작업이라 별도 워커 스레드에서 돌아서 대시보드 자체는 그동안도 계속 응답함. 서버 프로세스가 꺼지면(재부팅, 터미널 종료 등) 스케줄도 같이 멈추므로, 계속 자동으로 돌아가게 하려면 이 프로세스를 계속 띄워두거나(서버에 배포 등) 별도 프로세스 매니저로 관리해야 함. 시간은 `scheduler.py` 상단의 `DAILY_HOUR`/`WEEKLY_HOUR` 등 상수로 조절 가능.
@@ -119,5 +124,6 @@ OS 스케줄러(cron/작업 스케줄러) 설정 없이, **앱 프로세스 자�
 | `06_post_filter` | 상위 N개 선별 + 발행사/섹터 집중도 캡 (LLM 섹터 분류 포함) |
 | `07_backtest` | OOF 기반 과거 성과 검증 (look-ahead 없이 시점-정직) |
 | `08_web` | 로컬 대시보드 (FastAPI) |
+| `09_risk_management` | VaR/ES 산출 + 백테스팅(Kupiec/바젤 트래픽라이트) + 한도 초과 감지, 일일 리스크 보고서 |
 
 각 모듈 폴더의 `DESIGN.md`에 "왜 이렇게 설계했는지"가 정리돼 있음.

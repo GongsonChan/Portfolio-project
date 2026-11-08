@@ -15,6 +15,7 @@ STEPS = [
     ("04_views_estimation", "scripts/run_inference.py"),  # 그날 유니버스에 대해 Q 예측, views 테이블 저장
     ("05_black_litterman", "scripts/run_black_litterman.py"),  # Sigma/Q/Omega 결합 -> 유니버스 전체 비중
     ("06_post_filter", "scripts/run_post_filter.py"),  # 상위 N개 선별 + 발행사/섹터 캡
+    ("09_risk_management", "scripts/compute_daily_risk_report.py"),  # VaR/ES + 컴포넌트 VaR + 한도 체크
 ]
 
 if __name__ == "__main__":

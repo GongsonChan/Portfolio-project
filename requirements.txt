@@ -13,3 +13,4 @@ fastapi
 uvicorn
 jinja2
 apscheduler
+scipy

@@ -27,6 +27,17 @@
   canvas { max-height: 320px; }
   section { margin-bottom: 32px; }
   h2 { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  tr.breach { background: rgba(255,107,107,0.1); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge.ok { background: rgba(61,220,132,0.15); color: var(--pos); }
+  .badge.breach { background: rgba(255,107,107,0.15); color: var(--neg); }
+  .badge.green { background: rgba(61,220,132,0.15); color: var(--pos); }
+  .badge.yellow { background: rgba(255,200,87,0.15); color: #ffc857; }
+  .badge.red { background: rgba(255,107,107,0.15); color: var(--neg); }
+  .zone-banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 14px; font-size: 13px; border: 1px solid; }
+  .zone-banner.green { background: rgba(61,220,132,0.08); border-color: rgba(61,220,132,0.3); color: var(--pos); }
+  .zone-banner.yellow { background: rgba(255,200,87,0.08); border-color: rgba(255,200,87,0.3); color: #ffc857; }
+  .zone-banner.red { background: rgba(255,107,107,0.08); border-color: rgba(255,107,107,0.3); color: var(--neg); }
 </style>
 </head>
 <body>
@@ -93,6 +104,88 @@
     </script>
     {% else %}
     <p class="sub">아직 백테스트 결과가 없습니다 (07_backtest/scripts/run_backtest.py를 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>리스크 관리 (VaR/ES, 1일 기준)</h2>
+    {% if risk %}
+    <div class="sub" style="margin-top:-12px;">리포트 기준일: {{ risk.as_of_date }}</div>
+    <div class="grid">
+      {% for e in risk.estimates %}
+      <div class="card">
+        <div class="label">{{ e.method_label }} {{ "%.0f"|format(e.confidence * 100) }}%</div>
+        <div class="value">VaR {{ "%.2f"|format(e.var_value * 100) }}%</div>
+        <div class="sub" style="margin:4px 0 0;">{% if e.es_value is not none %}ES {{ "%.2f"|format(e.es_value * 100) }}%{% else %}ES -{% endif %}</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <h2 style="margin-top:20px;">한도 체크{% if risk.any_breach %} <span class="badge breach">BREACH</span>{% else %} <span class="badge ok">OK</span>{% endif %}</h2>
+    {% if risk.limits %}
+    <table>
+      <tr><th>한도</th><th>기준값</th><th>관측값</th><th>상태</th></tr>
+      {% for l in risk.limits %}
+      <tr class="{{ 'breach' if l.breached else '' }}">
+        <td>{{ l.limit_name }}</td>
+        <td>{{ "%.2f"|format(l.limit_value * 100) }}%</td>
+        <td>{{ "%.2f"|format(l.observed_value * 100) }}%</td>
+        <td>{% if l.breached %}<span class="badge breach">BREACH</span>{% else %}<span class="badge ok">OK</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if risk.components %}
+    <h2 style="margin-top:20px;">종목별 컴포넌트 VaR 기여도 (오일러 분해, 99%)</h2>
+    <table>
+      <tr><th>티커</th><th>종목명</th><th>전체 VaR 중 비중</th></tr>
+      {% for c in risk.components %}
+      <tr class="{{ 'breach' if c.share_of_total > 0.35 else '' }}">
+        <td>{{ c.ticker }}</td>
+        <td>{{ c.name }}</td>
+        <td><span class="weight-bar" style="width:{{ (c.share_of_total * 300)|round(0) }}px"></span>{{ "%.2f"|format(c.share_of_total * 100) }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+    {% else %}
+    <p class="sub">아직 리스크 리포트가 없습니다 (09_risk_management/scripts/compute_daily_risk_report.py를 먼저 실행하세요).</p>
+    {% endif %}
+
+    {% if risk_backtest %}
+    <h2 style="margin-top:20px;">VaR 모델 백테스트 (Kupiec 검정 + 바젤 트래픽라이트, 주간 재검증)</h2>
+    <table>
+      <tr><th>방법</th><th>신뢰수준</th><th>관측일수</th><th>예외횟수</th><th>기대율</th><th>Kupiec p-value</th><th>등급</th></tr>
+      {% for b in risk_backtest %}
+      <tr>
+        <td>{{ b.method }}</td>
+        <td>{{ "%.0f"|format(b.confidence * 100) }}%</td>
+        <td>{{ b.n_days }}</td>
+        <td>{{ b.n_breaches }}</td>
+        <td>{{ "%.1f"|format(b.expected_breach_rate * b.n_days) }}</td>
+        <td>{{ "%.4f"|format(b.kupiec_p_value) if b.kupiec_p_value is not none else "-" }}</td>
+        <td><span class="badge {{ b.traffic_light }}">{{ b.traffic_light }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
+    {% if basel_capital %}
+    <h2 style="margin-top:20px;">바젤 규제자본 승수 (1996 시장리스크 개정안)</h2>
+    <div class="zone-banner {{ basel_capital.zone }}">
+      <span class="badge {{ basel_capital.zone }}">{{ basel_capital.zone }}</span>
+      {{ basel_capital.zone_message }}
+    </div>
+    <div class="grid">
+      <div class="card"><div class="label">예외 횟수 (최근 250일)</div><div class="value">{{ basel_capital.n_breaches_250d }}</div></div>
+      <div class="card"><div class="label">승수 k</div><div class="value">{{ "%.2f"|format(basel_capital.multiplier) }}</div></div>
+      <div class="card"><div class="label">10일 99% VaR</div><div class="value">{{ "%.2f"|format(basel_capital.var_10day * 100) }}%</div></div>
+      <div class="card"><div class="label">필요 자본 (k × 평균 VaR)</div><div class="value neg">{{ "%.1f"|format(basel_capital.required_capital * 100) }}%</div></div>
+    </div>
+    {% if basel_capital.n_days_in_average < 20 %}
+    <p class="sub">* 60일 평균에 쓰인 과거 데이터가 {{ basel_capital.n_days_in_average }}일치뿐이라 아직 대표성 있는 수치가 아님 — daily_update.py가 매일 돌면서 var_estimates가 쌓이면 안정화됨.</p>
+    {% endif %}
     {% endif %}
   </section>
 </div>

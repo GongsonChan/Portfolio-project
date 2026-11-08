@@ -18,6 +18,8 @@ STEPS = [
     ("04_views_estimation", "scripts/train_final_models.py"),  # 실전 배포 모델 전체 재학습 (~100분+,
     # sequence_training_data.py가 캐싱 없이 매번 가격 데이터부터 시퀀스를 다시 계산하는 게 대부분)
     ("04_views_estimation", "scripts/compute_omega.py"),  # 방금 갱신된 챔피언 메타모델의 OOF로 Ω 재계산
+    ("09_risk_management", "scripts/run_var_backtest.py"),  # VaR 모델 자체가 맞는지 역사적으로 재검증
+    # (Kupiec 검정 + 바젤 트래픽라이트), OOF가 매주 갱신되니 같은 주기로 재검증
 ]
 
 if __name__ == "__main__":
