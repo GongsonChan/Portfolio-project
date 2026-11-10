@@ -15,3 +15,15 @@ CREATE TABLE IF NOT EXISTS equity_news_assessment (
     -- "정성적 위험도 등급의 run-to-run 불안정성")
     PRIMARY KEY (as_of_date, label, ticker)
 );
+
+CREATE TABLE IF NOT EXISTS equity_news_articles (
+    as_of_date DATE NOT NULL,
+    label VARCHAR(50) NOT NULL DEFAULT 'default',
+    ticker VARCHAR(20) NOT NULL,
+    rank INT NOT NULL,            -- 1 = most recent (naver_client.fetch_news sorts by date)
+    title VARCHAR(500) NOT NULL,
+    link VARCHAR(500) NOT NULL,
+    pub_date VARCHAR(50),          -- Naver's raw RFC-822-ish string, display-only (not parsed
+    -- into DATE -- this is just "what was shown", not used in any calculation)
+    PRIMARY KEY (as_of_date, label, ticker, rank)
+);

@@ -1,5 +1,6 @@
 import re
 import sys
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "01_data_load" / "src"))
@@ -9,6 +10,17 @@ import pandas as pd
 from sqlalchemy import text
 
 from db import engine
+
+
+def _format_pub_date(raw: str | None) -> str:
+    """Naver returns RFC-822 ("Tue, 10 Nov 2026 11:30:00 +0900") -- parse and reformat for
+    display rather than showing that raw string verbatim."""
+    if not raw:
+        return ""
+    try:
+        return parsedate_to_datetime(raw).strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError):
+        return raw
 
 METHOD_LABELS = {
     "parametric": "정규분포 가정",
@@ -295,6 +307,23 @@ def fetch_equity_research(ticker: str, label: str = "default") -> dict:
             {"label": label, "ticker": ticker},
         ).mappings().first()
 
+        articles = []
+        if news:
+            articles_df = pd.read_sql(
+                text(
+                    """
+                    SELECT rank, title, link, pub_date FROM equity_news_articles
+                    WHERE label = :label AND ticker = :ticker AND as_of_date = :as_of_date
+                    ORDER BY rank
+                    """
+                ),
+                conn,
+                params={"label": label, "ticker": ticker, "as_of_date": news["as_of_date"]},
+            )
+            if not articles_df.empty:
+                articles_df["pub_date"] = articles_df["pub_date"].map(_format_pub_date)
+            articles = articles_df.to_dict("records")
+
         similarity = pd.read_sql(
             text(
                 """
@@ -323,5 +352,6 @@ def fetch_equity_research(ticker: str, label: str = "default") -> dict:
         "report": report_dict,
         "financial_rows": financial_rows,
         "news": news_dict,
+        "articles": articles,
         "similarity": similarity.to_dict("records"),
     }

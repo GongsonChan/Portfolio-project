@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from pathlib import Path
 from typing import Literal
@@ -14,6 +15,35 @@ MODEL = "claude-haiku-5-5"  # same cheap-model choice as 06's sector classificat
 # summarization + a constrained-label judgment, not deep reasoning
 
 RiskLevel = Literal["낮음", "중간", "높음"]
+
+# Several Korean conglomerates' sports teams are named identically to the parent company (e.g.
+# 삼성화재 is both the insurer AND its V-리그 volleyball team, "삼성화재 블루밍스"; 삼성화재배 is
+# also a baduk/Go tournament it sponsors) -- a plain Naver news search on the company name pulls
+# in a lot of game-result/standings/tournament coverage that has nothing to do with the
+# business. Naver's search API doesn't reliably support boolean/exclude query syntax (tested:
+# appending a qualifier like "주가" cleans up 삼성화재 but makes OTHER tickers' results worse,
+# diluted by generic whole-market roundup articles instead), so this filters by keyword after
+# fetching. Tried the obvious terms first (배구, V리그, 감독, ...) and still let through real
+# match coverage that uses volleyball/baduk-specific jargon instead of those words (e.g.
+# "7:13->28:26 뒤집었다", "우스만 V리그 데뷔 후 최다 33득점 맹활약", "목진석, ...16강 승자로
+# [PS]") -- expanded against those ACTUAL observed titles. Best-effort heuristic, not
+# exhaustive; may need more terms if a new noise pattern shows up for a different ticker later.
+_IRRELEVANT_KEYWORDS = [
+    "배구단", "배구", "V리그", "바둑기사", "바둑", "기사(棋士)",
+    "농구단", "프로농구", "KBL", "축구단", "K리그", "야구단", "프로야구", "KBO",
+    "감독", "선수단", "선수", "결승", "리그 순위", "구단", "연승", "연패", "개막",
+    "득점", "맹활약", "공격하는", "공격 시도", "공격성공률", "리시브", "세트", "서브권",
+    "듀스", "진땀승", "16강", "32강", "8강", "4강", "승자전", "패자전", "[PS]", "[포토]",
+    # 현대모비스(KBL 농구단 "현대모비스 피버스")에서 추가로 발견된 패턴
+    "피버스", "치어리더", "야투율", "외인", "꼴찌", "폭발", "[화보]", "[현장분석]", "[BK 리뷰]",
+    "순위픽", "신인픽", "[사진]",
+]
+_IRRELEVANT_RE = re.compile("|".join(re.escape(k) for k in _IRRELEVANT_KEYWORDS))
+
+
+def filter_relevant_articles(articles: list[dict]) -> list[dict]:
+    """Drops articles whose title matches the sports-team noise pattern above."""
+    return [a for a in articles if not _IRRELEVANT_RE.search(a["title"])]
 
 
 class NewsAssessment(BaseModel):

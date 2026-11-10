@@ -97,6 +97,16 @@
       <p style="font-size:13px; line-height:1.6;">{{ news.news_summary }}</p>
       <p style="font-size:13px; line-height:1.6; color:var(--muted);"><b style="color:var(--text);">핵심 이슈:</b> {{ news.key_issues }}</p>
       <p style="font-size:13px; line-height:1.6; color:var(--muted);"><b style="color:var(--text);">위험도 근거:</b> {{ news.risk_rationale }}</p>
+      {% if articles %}
+      <div style="border-top:1px solid var(--border); margin-top:12px; padding-top:12px;">
+        <div class="sub" style="margin:0 0 8px;">참고한 뉴스 ({{ articles|length }}건)</div>
+        <ul style="margin:0; padding-left:18px; font-size:13px; line-height:1.9;">
+          {% for a in articles %}
+          <li><a href="{{ a.link }}" target="_blank" rel="noopener" style="color:var(--accent); text-decoration:none;">{{ a.title }}</a> <span class="sub" style="font-size:12px;">({{ a.pub_date }})</span></li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
     </div>
     {% else %}
     <p class="sub">아직 뉴스 평가가 없습니다 (10_equity_research/scripts/update_news_assessment.py를 먼저 실행하세요).</p>

@@ -131,6 +131,32 @@ def save_news_assessment(as_of_date, label: str, ticker: str, record: dict) -> N
         conn.execute(insert_sql, {**record, "as_of_date": as_of_date, "label": label, "ticker": ticker})
 
 
+def save_news_articles(as_of_date, label: str, ticker: str, articles: list[dict]) -> None:
+    """articles: naver_client.fetch_news()'s output ([{"title", "link", "pub_date", ...}, ...],
+    already sorted most-recent-first). Stored so the web report can show the actual source
+    links the LLM summary/risk rating were built from, not just the LLM's own words."""
+    delete_sql = text(
+        "DELETE FROM equity_news_articles WHERE as_of_date = :as_of_date AND label = :label AND ticker = :ticker"
+    )
+    insert_sql = text(
+        """
+        INSERT INTO equity_news_articles (as_of_date, label, ticker, rank, title, link, pub_date)
+        VALUES (:as_of_date, :label, :ticker, :rank, :title, :link, :pub_date)
+        """
+    )
+    rows = [
+        {
+            "as_of_date": as_of_date, "label": label, "ticker": ticker, "rank": i + 1,
+            "title": a["title"], "link": a["link"], "pub_date": a.get("pub_date"),
+        }
+        for i, a in enumerate(articles)
+    ]
+    with engine.begin() as conn:
+        conn.execute(delete_sql, {"as_of_date": as_of_date, "label": label, "ticker": ticker})
+        if rows:
+            conn.execute(insert_sql, rows)
+
+
 def save_business_description(corp_code: str, record: dict) -> None:
     """record: {"rcept_no", "report_nm", "section_text", "fetched_at"}."""
     insert_sql = text(
