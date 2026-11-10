@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>{{ name or ticker }} — Small Funds</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2e38; --text: #e6e8ec; --muted: #9aa0ac;
+    --pos: #3ddc84; --neg: #ff6b6b; --accent: #5b8cff;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, sans-serif; padding: 24px 16px; }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+  .back { color: var(--accent); text-decoration: none; font-size: 13px; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 15px; color: var(--muted); font-weight: 500; margin: 0 0 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 13px; margin-bottom: 14px; }
+  .kv div:nth-child(odd) { color: var(--muted); }
+  .body-text { white-space: pre-line; font-size: 13px; line-height: 1.6; max-height: 420px; overflow-y: auto; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge.green { background: rgba(61,220,132,0.15); color: var(--pos); }
+  .badge.yellow { background: rgba(255,200,87,0.15); color: #ffc857; }
+  .badge.red { background: rgba(255,107,107,0.15); color: var(--neg); }
+  .pos { color: var(--pos); } .neg { color: var(--neg); }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 10px 14px; text-align: left; font-size: 13px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  .sim-bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 3px; vertical-align: middle; margin-right: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/?label={{ label }}">&larr; 대시보드로</a>
+  <h1>{{ name or ticker }}</h1>
+  <div class="sub">{{ ticker }} · label: {{ label }}</div>
+
+  <section>
+    <h2>기업 개요 (DART)</h2>
+    {% if overview %}
+    <div class="panel">
+      <div class="kv">
+        <div>대표이사</div><div>{{ overview.ceo_name or "-" }}</div>
+        <div>설립일</div><div>{{ overview.est_dt or "-" }}</div>
+        <div>업종코드</div><div>{{ overview.induty_code or "-" }}</div>
+        <div>주소</div><div>{{ overview.address or "-" }}</div>
+        <div>홈페이지</div><div>{% if overview.homepage_url %}<a href="http://{{ overview.homepage_url }}" style="color:var(--accent);" target="_blank" rel="noopener">{{ overview.homepage_url }}</a>{% else %}-{% endif %}</div>
+      </div>
+    </div>
+    {% else %}
+    <p class="sub">DART 기업 정보가 아직 없습니다 (10_equity_research/scripts/fetch_company_overview.py를 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+
+  {% if report %}
+  <section>
+    <h2>기업개요 (요약)</h2>
+    <div class="panel"><p style="font-size:13px; line-height:1.6; margin:0;">{{ report.overview_summary }}</p></div>
+  </section>
+
+  <section>
+    <h2>재무제표 ({{ report.bsns_year }}년, {{ "연결" if report.fs_div == "CFS" else "개별" }})</h2>
+    <div class="panel">
+      <table style="margin-bottom:14px;">
+        <tr><th>항목</th><th>당기</th><th>전기</th><th>증감률</th></tr>
+        {% for row in financial_rows %}
+        <tr>
+          <td>{{ row.label }}</td>
+          <td>{{ "%.0f"|format(row.current / 1e8) ~ "억원" if row.current is not none else "-" }}</td>
+          <td>{{ "%.0f"|format(row.prior / 1e8) ~ "억원" if row.prior is not none else "-" }}</td>
+          <td class="{{ 'pos' if row.change_pct and row.change_pct >= 0 else 'neg' if row.change_pct else '' }}">{{ "%+.1f%%"|format(row.change_pct) if row.change_pct is not none else "-" }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p style="font-size:13px; line-height:1.6; margin:0;">{{ report.financial_summary }}</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>최신 동향 (사업보고서 기준)</h2>
+    <div class="panel"><p style="font-size:13px; line-height:1.6; margin:0;">{{ report.trends_summary }}</p></div>
+  </section>
+  {% else %}
+  <section>
+    <p class="sub">기업분석 리포트가 아직 없습니다 (10_equity_research/scripts/generate_equity_report.py를 먼저 실행하세요).</p>
+  </section>
+  {% endif %}
+
+  <section>
+    <h2>최근 뉴스 요약 + 정성적 위험도{% if news %} <span class="badge {{ news.risk_class }}">{{ news.risk_level }}</span>{% endif %}</h2>
+    {% if news %}
+    <div class="panel">
+      <div class="sub" style="margin-top:0;">기준일: {{ news.as_of_date }} · 등급 일치율 {{ news.n_agree }}/{{ news.n_runs }}</div>
+      <p style="font-size:13px; line-height:1.6;">{{ news.news_summary }}</p>
+      <p style="font-size:13px; line-height:1.6; color:var(--muted);"><b style="color:var(--text);">핵심 이슈:</b> {{ news.key_issues }}</p>
+      <p style="font-size:13px; line-height:1.6; color:var(--muted);"><b style="color:var(--text);">위험도 근거:</b> {{ news.risk_rationale }}</p>
+    </div>
+    {% else %}
+    <p class="sub">아직 뉴스 평가가 없습니다 (10_equity_research/scripts/update_news_assessment.py를 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>비즈니스 유사도 (사업보고서 텍스트 임베딩 기반)</h2>
+    {% if similarity %}
+    <table>
+      <tr><th>종목</th><th>유사도</th></tr>
+      {% for s in similarity %}
+      <tr>
+        <td><a href="/equity-research/{{ s.ticker }}?label={{ label }}" style="color:var(--accent); text-decoration:none;">{{ s.ticker }} {{ s.name }}</a></td>
+        <td><span class="sim-bar" style="width:{{ (s.similarity * 200)|round(0) }}px"></span>{{ "%.3f"|format(s.similarity) }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% else %}
+    <p class="sub">아직 유사도 데이터가 없습니다 (10_equity_research/scripts/compute_business_similarity.py를 먼저 실행하세요).</p>
+    {% endif %}
+  </section>
+</div>
+</body>
+</html>

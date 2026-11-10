@@ -53,7 +53,7 @@
       {% for h in holdings %}
       <tr>
         <td>{{ h.ticker }}</td>
-        <td>{{ h.name }}</td>
+        <td><a href="/equity-research/{{ h.ticker }}?label={{ label }}" style="color:var(--accent); text-decoration:none;">{{ h.name }}</a></td>
         <td>{{ h.sector }}</td>
         <td><span class="weight-bar" style="width:{{ (h.weight * 300)|round(0) }}px"></span>{{ "%.2f"|format(h.weight * 100) }}%</td>
       </tr>

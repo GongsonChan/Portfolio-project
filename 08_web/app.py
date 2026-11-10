@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from repository import (
     fetch_backtest_results,
     fetch_basel_capital,
+    fetch_equity_research,
     fetch_latest_final_portfolio,
     fetch_risk_report,
     fetch_var_backtest_summary,
@@ -59,6 +60,12 @@ def dashboard(request: Request, label: str = "default"):
     )
 
 
+@app.get("/equity-research/{ticker}", response_class=HTMLResponse)
+def equity_research(request: Request, ticker: str, label: str = "default"):
+    data = fetch_equity_research(ticker, label)
+    return templates.TemplateResponse(request, "equity_research.html", {"label": label, **data})
+
+
 if __name__ == "__main__":
     import socket
 
@@ -98,6 +105,15 @@ if __name__ == "__main__":
             except OSError as e:
                 last_error = e
                 print(f"[startup] socket/event-loop setup failed (attempt {attempt + 1}/8): {e}", flush=True)
+                # Without this, a failed attempt's socket stays open and bound (if bind()
+                # succeeded but a later step in the same try block failed), so the NEXT attempt's
+                # bind() fails with WinError 10048 "address already in use" against our own
+                # leaked socket -- found by the retry loop itself failing 8/8 with a mix of
+                # 10014s and 10048s instead of eventually succeeding.
+                try:
+                    sock.close()
+                except (NameError, OSError):
+                    pass
         if loop is None:
             raise RuntimeError("could not start the server after 8 attempts") from last_error
 

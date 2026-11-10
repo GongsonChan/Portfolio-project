@@ -26,6 +26,10 @@ services:
       - ../06_post_filter/db/final_portfolio.sql:/docker-entrypoint-initdb.d/08_final_portfolio.sql
       - ../07_backtest/db/backtest_period_returns.sql:/docker-entrypoint-initdb.d/09_backtest_period_returns.sql
       - ../09_risk_management/db/risk_tables.sql:/docker-entrypoint-initdb.d/10_risk_tables.sql
+      - ../10_equity_research/db/dart_tables.sql:/docker-entrypoint-initdb.d/11_dart_tables.sql
+      - ../10_equity_research/db/news_tables.sql:/docker-entrypoint-initdb.d/12_news_tables.sql
+      - ../10_equity_research/db/similarity_tables.sql:/docker-entrypoint-initdb.d/13_similarity_tables.sql
+      - ../10_equity_research/db/equity_report_tables.sql:/docker-entrypoint-initdb.d/14_equity_report_tables.sql
 
 volumes:
   db_data:

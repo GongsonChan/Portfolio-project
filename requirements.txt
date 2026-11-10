@@ -14,3 +14,5 @@ uvicorn
 jinja2
 apscheduler
 scipy
+lxml
+sentence-transformers

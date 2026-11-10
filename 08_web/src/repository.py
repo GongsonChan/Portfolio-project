@@ -23,6 +23,8 @@ LIMIT_LABELS = {
     "max_component_var_share": "종목별 VaR 집중도",
 }
 _WORST_TICKER_RE = re.compile(r"^(.+?) \(worst: (.+)\)$")
+RISK_LEVEL_CLASS = {"낮음": "green", "중간": "yellow", "높음": "red"}  # reuses the green/yellow/
+# red badge palette already defined for 09's Basel zone (see dashboard.html's <style>)
 
 
 def fetch_latest_final_portfolio(label: str = "default") -> tuple[pd.DataFrame, object]:
@@ -227,4 +229,99 @@ def summarize_backtest(results: pd.DataFrame) -> dict:
         "sharpe": sharpe,
         "max_drawdown": drawdown.min(),
         "equity_curve": list(zip(dates.dt.strftime("%Y-%m-%d"), equity)),
+    }
+
+
+_FINANCIAL_ROW_LABELS = [
+    ("revenue", "매출액"),
+    ("operating_income", "영업이익"),
+    ("net_income", "당기순이익"),
+    ("total_assets", "자산총계"),
+    ("total_liabilities", "부채총계"),
+    ("total_equity", "자본총계"),
+    ("operating_cash_flow", "영업활동현금흐름"),
+]
+
+
+def _build_financial_rows(report: dict) -> list[dict]:
+    """report: a row from equity_report (10_equity_research/scripts/generate_equity_report.py).
+    Converts the flat current/prior NUMERIC columns into a display table with YoY % change
+    computed once here rather than in Jinja (None-guarded division is awkward in templates)."""
+    rows = []
+    for key, label in _FINANCIAL_ROW_LABELS:
+        # NUMERIC columns come back as Decimal, not float -- Decimal / 1e8 (a float) raises
+        # TypeError in the template, so cast here rather than in Jinja.
+        current = float(report[key]) if report.get(key) is not None else None
+        prior = float(report[f"{key}_prior"]) if report.get(f"{key}_prior") is not None else None
+        change_pct = (current - prior) / abs(prior) * 100 if current is not None and prior else None
+        rows.append({"label": label, "current": current, "prior": prior, "change_pct": change_pct})
+    return rows
+
+
+def fetch_equity_research(ticker: str, label: str = "default") -> dict:
+    """10_equity_research's per-ticker report: DART company overview + "사업의 내용", latest
+    news/qualitative-risk assessment, and business-model similarity to the rest of the current
+    portfolio. Queried directly (not via 10's repository.py), same self-contained pattern this
+    module uses for 09's tables."""
+    with engine.connect() as conn:
+        name = conn.execute(text("SELECT name FROM securities WHERE ticker = :ticker"), {"ticker": ticker}).scalar()
+
+        overview = conn.execute(
+            text(
+                """
+                SELECT o.corp_code, o.ceo_name, o.induty_code, o.est_dt, o.address, o.homepage_url
+                FROM dart_company_overview o JOIN dart_corp_codes c ON o.corp_code = c.corp_code
+                WHERE c.stock_code = :ticker
+                """
+            ),
+            {"ticker": ticker},
+        ).mappings().first()
+
+        report = None
+        if overview:
+            report = conn.execute(
+                text("SELECT * FROM equity_report WHERE corp_code = :corp_code"),
+                {"corp_code": overview["corp_code"]},
+            ).mappings().first()
+
+        news = conn.execute(
+            text(
+                """
+                SELECT as_of_date, news_summary, key_issues, risk_level, risk_rationale, n_agree, n_runs
+                FROM equity_news_assessment WHERE label = :label AND ticker = :ticker
+                ORDER BY as_of_date DESC LIMIT 1
+                """
+            ),
+            {"label": label, "ticker": ticker},
+        ).mappings().first()
+
+        similarity = pd.read_sql(
+            text(
+                """
+                SELECT bs.ticker_j AS ticker, s.name, bs.similarity FROM business_similarity bs
+                JOIN securities s ON bs.ticker_j = s.ticker
+                WHERE bs.label = :label AND bs.ticker_i = :ticker AND bs.ticker_j != :ticker
+                  AND bs.as_of_date = (SELECT MAX(as_of_date) FROM business_similarity WHERE label = :label)
+                ORDER BY bs.similarity DESC
+                """
+            ),
+            conn,
+            params={"label": label, "ticker": ticker},
+        )
+
+    news_dict = dict(news) if news else None
+    if news_dict:
+        news_dict["risk_class"] = RISK_LEVEL_CLASS.get(news_dict["risk_level"], "")
+
+    report_dict = dict(report) if report else None
+    financial_rows = _build_financial_rows(report_dict) if report_dict else []
+
+    return {
+        "ticker": ticker,
+        "name": name,
+        "overview": dict(overview) if overview else None,
+        "report": report_dict,
+        "financial_rows": financial_rows,
+        "news": news_dict,
+        "similarity": similarity.to_dict("records"),
     }
