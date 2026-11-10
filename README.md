@@ -1,6 +1,6 @@
 # Small Funds
 
-Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → DCC-GARCH 기반 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드 → VaR/ES 기반 리스크 관리까지 이어지는 모듈형 파이프라인 (01~09). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를, 전체 요약은 [`SKILLS.md`](SKILLS.md)를 참고.
+Black-Litterman 기반 포트폴리오 파이프라인. 데이터 적재 → 유니버스 필터 → DCC-GARCH 기반 공분산(Σ) 추정 → ML 기반 뷰(Q, Ω) 추정 → Black-Litterman → 상위 종목 선별 → 백테스트 → 웹 대시보드 → VaR/ES 기반 리스크 관리 → DART/뉴스 기반 LLM 기업분석까지 이어지는 모듈형 파이프라인 (01~10). 각 단계의 설계 이유는 모듈별 `DESIGN.md`를, 전체 요약은 [`SKILLS.md`](SKILLS.md)를 참고.
 
 ```mermaid
 flowchart TD
@@ -13,8 +13,10 @@ flowchart TD
     F --> G["07 백테스트<br/>OOF 기반 시점-정직 검증"]
     F --> H["08 웹 대시보드<br/>FastAPI + 인앱 스케줄러"]
     F --> I["09 리스크 관리<br/>VaR/ES·한도 체크·일일 리포트"]
+    F --> J["10 기업분석<br/>DART 재무제표·뉴스 LLM 리포트<br/>+사업보고서 임베딩 유사도"]
     G --> H
     I --> H
+    J --> H
 ```
 
 ## 사전 준비물
@@ -102,13 +104,17 @@ python scripts/weekly_update.py   # 주말: 유니버스 재선정 + 모수 전�
 cd 08_web
 python app.py
 ```
-`http://127.0.0.1:8000` — 오늘의 추천 포트폴리오 + 백테스트 성과(샤프/MDD/누적수익률) + 09_risk_management의 VaR/ES·한도 체크·바젤 규제자본 승수.
+`http://127.0.0.1:8000` — 오늘의 추천 포트폴리오 + 백테스트 성과(샤프/MDD/누적수익률) + 09_risk_management의 VaR/ES·한도 체크·바젤 규제자본 승수 + 10_equity_research의 종목별 DART 기반 기업분석 리포트.
 
 <img src="picture01.png" alt="최종 추천 포트폴리오 화면" width="700">
 <img src="picture02.png" alt="백테스트 성과 화면" width="700">
 <img src="picture03.png" alt="VaR/ES 및 리스크 한도 체크 화면" width="700">
 <img src="picture04.png" alt="종목별 컴포넌트 VaR 기여도(오일러 분해) 화면" width="700">
 <img src="picture05.png" alt="VaR 모델 백테스트(Kupiec/바젤 트래픽라이트) 및 바젤 규제자본 승수 화면" width="700">
+<img src="picture06.png" alt="종목별 리포트 - DART 기업개요 화면" width="700">
+<img src="picture07.png" alt="종목별 리포트 - 재무제표 및 최신 동향 화면" width="700">
+<img src="picture08.png" alt="종목별 리포트 - 뉴스 요약 및 정성적 위험도, 참고 뉴스 목록 화면" width="700">
+<img src="picture09.png" alt="종목 간 비즈니스 유사도(사업보고서 텍스트 임베딩 기반) 화면" width="700">
 
 ### 자동 스케줄링 (앱 내장)
 OS 스케줄러(cron/작업 스케줄러) 설정 없이, **앱 프로세스 자체가** 스케줄을 가지고 있음 (`08_web/src/scheduler.py`, APScheduler) — `python app.py`를 켜두는 동안은 평일 08:00에 `daily_update.py`, 토요일 09:00에 `weekly_update.py`가 자동으로 실행됨. 긴 작업이라 별도 워커 스레드에서 돌아서 대시보드 자체는 그동안도 계속 응답함. 서버 프로세스가 꺼지면(재부팅, 터미널 종료 등) 스케줄도 같이 멈추므로, 계속 자동으로 돌아가게 하려면 이 프로세스를 계속 띄워두거나(서버에 배포 등) 별도 프로세스 매니저로 관리해야 함. 시간은 `scheduler.py` 상단의 `DAILY_HOUR`/`WEEKLY_HOUR` 등 상수로 조절 가능.
@@ -125,5 +131,6 @@ OS 스케줄러(cron/작업 스케줄러) 설정 없이, **앱 프로세스 자�
 | `07_backtest` | OOF 기반 과거 성과 검증 (look-ahead 없이 시점-정직) |
 | `08_web` | 로컬 대시보드 (FastAPI) |
 | `09_risk_management` | VaR/ES 산출 + 백테스팅(Kupiec/바젤 트래픽라이트) + 한도 초과 감지, 일일 리스크 보고서 |
+| `10_equity_research` | DART 공시(기업개요/재무제표/사업보고서) + 네이버 뉴스 기반 LLM 기업분석 리포트, 사업보고서 텍스트 임베딩 기반 종목 간 유사도 |
 
 각 모듈 폴더의 `DESIGN.md`에 "왜 이렇게 설계했는지"가 정리돼 있음.
