@@ -58,7 +58,7 @@
   {% if report %}
   <section>
     <h2>기업개요 (요약)</h2>
-    <div class="panel"><p style="font-size:13px; line-height:1.6; margin:0;">{{ report.overview_summary }}</p></div>
+    <div class="panel">{% for para in report.overview_summary | paragraphs %}<p style="font-size:13px; line-height:1.6; margin:0 0 10px 0;">{{ para }}</p>{% endfor %}</div>
   </section>
 
   <section>
@@ -75,13 +75,13 @@
         </tr>
         {% endfor %}
       </table>
-      <p style="font-size:13px; line-height:1.6; margin:0;">{{ report.financial_summary }}</p>
+      {% for para in report.financial_summary | paragraphs %}<p style="font-size:13px; line-height:1.6; margin:0 0 10px 0;">{{ para }}</p>{% endfor %}
     </div>
   </section>
 
   <section>
     <h2>최신 동향 (사업보고서 기준)</h2>
-    <div class="panel"><p style="font-size:13px; line-height:1.6; margin:0;">{{ report.trends_summary }}</p></div>
+    <div class="panel">{% for para in report.trends_summary | paragraphs %}<p style="font-size:13px; line-height:1.6; margin:0 0 10px 0;">{{ para }}</p>{% endfor %}</div>
   </section>
   {% else %}
   <section>

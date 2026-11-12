@@ -33,6 +33,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Small Funds", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
+# 10_equity_research의 LLM 요약(overview/trends/financial_summary)은 report_writer.py의 프롬프트
+# 지시에 따라 주제별로 "\n\n"을 넣어 문단을 구분해둠 -- 템플릿에서 이 필터로 쪼개서 <p>마다 렌더링.
+templates.env.filters["paragraphs"] = lambda text: [p.strip() for p in text.split("\n\n") if p.strip()] if text else []
 
 
 @app.get("/", response_class=HTMLResponse)
